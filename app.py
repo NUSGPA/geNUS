@@ -147,7 +147,7 @@ if not st.session_state.courses.empty:
     st.sidebar.download_button(
         "📥 Download CSV", 
         st.session_state.courses.to_csv(index=False).encode('utf-8'), 
-        "geNUS_Report.csv", 
+        "mygeNUS.csv", 
         "text/csv", 
         use_container_width=True
     )
@@ -1139,7 +1139,7 @@ if not st.session_state.courses.empty:
                                 let url = canvas.toDataURL("image/png");
                                 let a = document.createElement("a");
                                 a.href = url;
-                                a.download = "geNUS_Report.png";
+                                a.download = "mygeNUS.png";
                                 document.body.appendChild(a);
                                 a.click();
                                 document.body.removeChild(a);
