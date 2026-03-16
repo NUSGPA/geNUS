@@ -18,6 +18,17 @@ geNUS is built utilizing the **Streamlit** framework in Python, customized with 
 - **CSS Customization**: Incorporates custom CSS implementations to override standard Streamlit layouts, applying specific color palettes, responsive grid structures, and custom typography (Google's "Outfit" font).
 - **Client-Side Export**: The report card generation bypasses server-side image rendering. It injects an HTML block that loads the `html2canvas.js` library, enabling the user's browser to render the DOM elements onto an HTML5 Canvas and trigger a direct `image/png` download locally.
 
+### API Integrations
+The application relies on external APIs to fetch module data and generate AI-driven insights. Data fetching and caching logic is intentionally distinct from the main application thread to avoid blocking UI renders.
+
+- **NUSMods API (`data_manager.py`)**: 
+  - The application dynamically retrieves module information via the official `api.nusmods.com/v2/` endpoints. 
+  - Instead of forcing the client to hold the full 19MB `moduleInfo.json` in memory, the script fetches the data, extracts only what is necessary (Module Code, Title, Credits, and S/U eligibility), and caches a lightweight "lite" version down to ~1.5MB per academic year.
+  - A 24-hour cache invalidation strategy allows the data to remain up to date without repeatedly hitting the NUSMods servers.
+- **Google Gemini API (`wrapped_engine.py`)**: 
+  - Accessed via the `google-generativeai` SDK, targeting the `gemini-2.5-flash` model for fast inference.
+  - Designed with defensive programming: handling rate limit exceptions (HTTP 429) gracefully to ensure the app does not crash under API load limits.
+
 ### Language Model & RAG Implementation 
 The Academic Archetype feature utilizes a **Retrieval-Augmented Generation (RAG)** pipeline backed by the **Gemini 2.5 Flash** large language model (LLM).
 
