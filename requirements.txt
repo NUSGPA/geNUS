@@ -1,0 +1,7 @@
+streamlit
+pandas
+altair
+matplotlib
+requests
+numpy
+google-generativeai

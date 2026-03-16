@@ -1,0 +1,23 @@
+# --- Security / Secrets ---
+.streamlit/secrets.toml
+.env
+
+# --- Virtual Environments ---
+venv/
+env/
+.venv/
+Pipfile.lock
+
+# --- Python Cache / Bytecode ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- OS Generated Files ---
+.DS_Store
+Thumbs.db
+
+# --- IDEs and Editors ---
+.vscode/
+.idea/
