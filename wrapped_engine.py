@@ -1,6 +1,6 @@
 """
-NUSGPA Wrapped Engine
-Computes rich insights from transcript data for the Wrapped feature.
+NUSGPA DNA Engine
+Computes rich insights from transcript data for the DNA feature.
 Supports optional LLM narrative generation using RAG (Retrieval-Augmented Generation)
 with NUSMods module data as the knowledge base.
 """
@@ -38,7 +38,7 @@ def _get_category(prefix):
 
 
 def compute_insights(courses_df, summary_df, grade_map, sem_mapping):
-    """Compute all wrapped insights from the user's transcript data."""
+    """Compute all DNA insights from the user's transcript data."""
     ins = {}
     if courses_df.empty:
         return ins
@@ -247,17 +247,17 @@ def compute_insights(courses_df, summary_df, grade_map, sem_mapping):
     # === FUN FACTS ===
     ff = []
     if ins.get("best_streak", 0) >= 3:
-        ff.append(f"🔥 You scored A- or above **{ins['best_streak']} times in a row**!")
+        ff.append(f"🔥 You scored A- or above {ins['best_streak']} times in a row!")
     if ins.get("a_percentage", 0) > 50:
-        ff.append(f"⭐ Over **half** your graded modules are A-range!")
+        ff.append(f"⭐ Over half your graded modules are A-range!")
     if ins.get("unique_prefixes", 0) >= 8:
-        ff.append(f"🗺️ You've explored **{ins['unique_prefixes']}** different subject areas!")
+        ff.append(f"🗺️ You've explored {ins['unique_prefixes']} different subject areas!")
     if ins.get("total_mcs", 0) >= 100:
-        ff.append(f"💎 **{ins['total_mcs']} MCs** cleared — past the halfway mark!")
+        ff.append(f"💎 {ins['total_mcs']} MCs cleared — past the halfway mark!")
     elif ins.get("total_mcs", 0) >= 40:
-        ff.append(f"📚 **{ins['total_mcs']} MCs** under your belt and counting!")
+        ff.append(f"📚 {ins['total_mcs']} MCs under your belt and counting!")
     if ins.get("improvement_delta", 0) > 0.5:
-        ff.append(f"📈 Biggest comeback: **+{ins['improvement_delta']}** GPA jump in {ins.get('most_improved_sem', 'one semester')}!")
+        ff.append(f"📈 Biggest comeback: +{ins['improvement_delta']} GPA jump in {ins.get('most_improved_sem', 'one semester')}!")
     ins["fun_facts"] = ff
 
     return ins

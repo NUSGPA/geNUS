@@ -265,7 +265,7 @@ if not st.session_state.courses.empty:
 
     # --- TABS UI ---
     st.divider()
-    tab1, tab2, tab4 = st.tabs(["Dashboard", "S/U & Target Planner", "Wrapped"])
+    tab1, tab2, tab4 = st.tabs(["Dashboard", "S/U & Target Planner", "DNA"])
 
     # === TAB 1: DASHBOARD ===
     with tab1:
@@ -689,12 +689,12 @@ if not st.session_state.courses.empty:
                 st.caption(f"Suggested Target: **Strictly {grade_equiv} or better**")
                 st.progress(min(max(req_avg/5.0, 0.0), 1.0))
 
-    # === TAB 4: WRAPPED ===
+    # === TAB 4: DNA ===
     with tab4:
         # --- Custom CSS ---
         st.markdown("""
         <style>
-        .wrapped-hero {
+        .DNA-hero {
             background: linear-gradient(90deg, rgba(240, 147, 251, 0.07), rgba(245, 87, 108, 0.07), rgba(255, 217, 61, 0.07));
             border-radius: 20px;
             padding: 3rem 2rem;
@@ -702,7 +702,7 @@ if not st.session_state.courses.empty:
             border: 1px solid rgba(255,255,255,0.05);
             margin-bottom: 1.5rem;
         }
-        .wrapped-hero h1 {
+        .DNA-hero h1 {
             font-size: 2.6rem;
             font-weight: 900;
             background: linear-gradient(90deg, #f093fb, #f5576c, #ffd93d);
@@ -710,7 +710,7 @@ if not st.session_state.courses.empty:
             -webkit-text-fill-color: transparent;
             margin-bottom: 0.3rem;
         }
-        .wrapped-hero p {
+        .DNA-hero p {
             color: rgba(255,255,255,0.65);
             font-size: 1rem;
         }
@@ -814,8 +814,8 @@ if not st.session_state.courses.empty:
 
         # --- Hero ---
         st.markdown('''
-        <div class="wrapped-hero">
-            <h1>geNUS Wrapped</h1>
+        <div class="DNA-hero">
+            <h1>geNUS DNA</h1>
             <p>Your academic journey, decoded.</p>
         </div>
         ''', unsafe_allow_html=True)
@@ -1076,7 +1076,7 @@ if not st.session_state.courses.empty:
                                         <tspan fill="white">ge</tspan><tspan fill="url(#nugrad)">NUS</tspan>
                                     </text>
                                 </svg>
-                                <h1 class="brand-h1" style="font-size:32px; margin-top:-15px; opacity:0.7; font-weight:400; text-align:center;">Wrapped.</h1>
+                                <h1 class="brand-h1" style="font-size:32px; margin-top:-15px; opacity:0.7; font-weight:400; text-align:center;">DNA.</h1>
                             </div>
 
                             {gpa_html}
@@ -1146,7 +1146,7 @@ if not st.session_state.courses.empty:
                                 
                                 btn.innerText = "DOWNLOADED";
                                 out.style.display = "block";
-                                out.innerHTML = "<p style='color: white; font-size: 13px; margin-bottom:15px; opacity: 0.6; font-weight:700;'>YOUR WRAPPED IS READY!</p><img src='" + url + "' style='width: 100%; border-radius: 0;' />";
+                                out.innerHTML = "<p style='color: white; font-size: 13px; margin-bottom:15px; opacity: 0.6; font-weight:700;'>YOUR DNA IS READY!</p><img src='" + url + "' style='width: 100%; border-radius: 0;' />";
                             }}).catch(err => {{
                                 btn.innerText = "ERROR";
                                 console.error(err);
