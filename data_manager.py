@@ -42,9 +42,11 @@ def ensure_all_years_cached(ay_list):
             
     # 2. Batch Download (Only if needed)
     if missing_or_old:
-        with st.status("Refreshing module database...", expanded=True) as status:
+        updated_any = False
+        with st.status("Refreshing module database...", expanded=False) as status:
             for i, ay in enumerate(missing_or_old):
-                st.write(f"Updating data for AY {ay}...")
+                # Update label instead of st.write to prevent pulsing/resizing
+                status.update(label=f"Updating database: AY {ay} ({i+1}/{len(missing_or_old)})")
                 url = f"https://api.nusmods.com/v2/{ay}/moduleInfo.json"
                 try:
                     response = requests.get(url)
@@ -63,10 +65,14 @@ def ensure_all_years_cached(ay_list):
                         
                         with open(f"modules_lite_{ay}.json", "w") as f:
                             json.dump(lite_data, f)
-                except Exception as e:
-                    st.warning(f"Could not update {ay}. Keeping old data if available.")
+                        updated_any = True
+                except Exception:
+                    # Silent fail to avoid jitter; next run will retry
+                    pass
             
             status.update(label="Database up to date!", state="complete", expanded=False)
+        return updated_any
+    return False
 
 @st.cache_data(show_spinner=False)
 def get_modules_for_ay(ay):

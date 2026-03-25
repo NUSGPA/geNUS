@@ -158,10 +158,8 @@ if st.sidebar.button("⚠️ Reset All", on_click=reset_app_callback, type="prim
 
 st.sidebar.markdown("---")
 
-# Pre-cache outside expander to avoid nested st.status/expander error
-with st.sidebar:
-    ay_list, default_ay = dm.get_ay_options()
-    dm.ensure_all_years_cached(ay_list)
+# Pre-fetch year options for the selectbox below
+ay_list, default_ay = dm.get_ay_options()
 
 with st.sidebar.expander("Add New Course", expanded=True):
     try: idx = ay_list.index(default_ay)
@@ -182,6 +180,11 @@ with st.sidebar.expander("Add New Course", expanded=True):
     with c1: st.number_input("Credits", min_value=0.0, step=1.0, key="credits_input", label_visibility="collapsed")
     with c2: st.selectbox("Grade", list(grade_map.keys()), key="grade_input", label_visibility="collapsed")
     st.button("Add Module", on_click=add_course_callback, use_container_width=True)
+
+# Check/Update the database at the bottom of the sidebar to prevent UI jitter of top elements
+with st.sidebar:
+    if dm.ensure_all_years_cached(ay_list):
+        st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Data provided by [NUSMods](https://nusmods.com).")
