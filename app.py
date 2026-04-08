@@ -6,6 +6,7 @@ import re
 import data_manager as dm
 import matplotlib.pyplot as plt
 import wrapped_engine as we
+import grad_tracker as gt
 
 # --- SECTION 1: APP CONFIGURATION ---
 st.set_page_config(page_title="geNUS", layout="wide")
@@ -120,6 +121,8 @@ def reset_app_callback():
     st.session_state.uploader_id += 1
     st.session_state.course_name_input = ""
     st.session_state.search_selection = None
+    if "grad_plan" in st.session_state:
+        del st.session_state.grad_plan
 
 # --- SECTION 4: SIDEBAR ---
 st.sidebar.header("Data & Actions")
@@ -135,6 +138,18 @@ if uploaded_file:
             df_up = pd.read_csv(uploaded_file)
             required_cols = {"Course", "Semester", "Grade", "Credits", "SU_Opt_Out"}
             if required_cols.issubset(df_up.columns):
+                # Clear existing grad plan before loading new file
+                if "grad_plan" in st.session_state:
+                    del st.session_state.grad_plan
+                
+                plan_rows = df_up[df_up["Course"] == "_GRAD_PLAN_"]
+                if not plan_rows.empty:
+                    try:
+                        import grad_tracker as gt
+                        st.session_state.grad_plan = gt.plan_from_json(str(plan_rows.iloc[0]["Semester"]))
+                    except: pass
+                df_up = df_up[df_up["Course"] != "_GRAD_PLAN_"]
+
                 if "SU_Opt_Out" in df_up.columns: df_up["SU_Opt_Out"] = df_up["SU_Opt_Out"].astype(bool)
                 df_up = migrate_old_data(df_up) # Migrate immediately
                 st.session_state.courses = df_up
@@ -143,10 +158,19 @@ if uploaded_file:
             else: st.error("❌ Invalid CSV columns")
         except Exception as e: st.error(f"Error: {e}")
 
-if not st.session_state.courses.empty:
+def get_export_csv():
+    df_export = st.session_state.courses.copy()
+    if "grad_plan" in st.session_state:
+        import grad_tracker as gt
+        plan_json = gt.plan_to_json(st.session_state.grad_plan)
+        plan_row = pd.DataFrame([{"Course": "_GRAD_PLAN_", "Semester": plan_json, "Grade": "", "Credits": 0.0, "SU_Opt_Out": False}])
+        df_export = pd.concat([df_export, plan_row], ignore_index=True)
+    return df_export.to_csv(index=False).encode('utf-8')
+
+if not st.session_state.courses.empty or "grad_plan" in st.session_state:
     st.sidebar.download_button(
         "📥 Download CSV", 
-        st.session_state.courses.to_csv(index=False).encode('utf-8'), 
+        get_export_csv(), 
         "mygeNUS.csv", 
         "text/csv", 
         use_container_width=True
@@ -268,7 +292,7 @@ if not st.session_state.courses.empty:
 
     # --- TABS UI ---
     st.divider()
-    tab1, tab2, tab4 = st.tabs(["Dashboard", "S/U & Target Planner", "DNA"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "S/U & Target Planner", "🚧 Grad Tracker", "DNA"])
 
     # === TAB 1: DASHBOARD ===
     with tab1:
@@ -692,6 +716,552 @@ if not st.session_state.courses.empty:
                 st.caption(f"Suggested Target: **Strictly {grade_equiv} or better**")
                 st.progress(min(max(req_avg/5.0, 0.0), 1.0))
 
+    # === TAB 3: GRADUATION TRACKER (WIP) ===
+    with tab3:
+        st.markdown("""
+        <style>
+        .wip-container {
+            background: linear-gradient(135deg, rgba(0, 200, 150, 0.06), rgba(0, 115, 255, 0.06));
+            border-radius: 24px;
+            padding: 4rem 2rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.07);
+            margin: 2rem auto;
+            max-width: 600px;
+        }
+        .wip-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .wip-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        .wip-sub {
+            color: rgba(255,255,255,0.55);
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+        .wip-badge {
+            display: inline-block;
+            margin-top: 1.5rem;
+            background: rgba(255, 200, 0, 0.12);
+            color: #ffd93d;
+            border: 1px solid rgba(255, 200, 0, 0.25);
+            border-radius: 100px;
+            padding: 0.4rem 1.2rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="wip-container">
+            <div class="wip-icon">🚧</div>
+            <div class="wip-title">Coming Soon</div>
+            <div class="wip-sub">
+                The Graduation Tracker is currently under construction.<br>
+                Track your degree requirements and module progress — launching soon!
+            </div>
+            <div class="wip-badge">Work in Progress</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # === TAB 3: GRADUATION TRACKER (FULL — HIDDEN) ===
+    if False:  # noqa — kept for reference, re-enable when ready
+     with st.container():
+        # --- Grad Tracker CSS ---
+        st.markdown("""
+        <style>
+        .grad-hero {
+            background: linear-gradient(135deg, rgba(0, 200, 150, 0.08), rgba(0, 115, 255, 0.08));
+            border-radius: 20px;
+            padding: 2rem 2rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .grad-hero h2 {
+            font-size: 2rem;
+            font-weight: 900;
+            background: linear-gradient(90deg, #00c896, #0073ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.2rem;
+        }
+        .grad-hero p {
+            color: rgba(255,255,255,0.55);
+            font-size: 0.9rem;
+        }
+        .grad-overall {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 18px;
+            padding: 1.5rem 2rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+            margin-bottom: 1.5rem;
+        }
+        .grad-overall .go-pct {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #fff;
+            line-height: 1;
+        }
+        .grad-overall .go-label {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.4);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 0.3rem;
+        }
+        .grad-overall .go-mc {
+            font-size: 1.1rem;
+            color: rgba(255,255,255,0.7);
+            margin-top: 0.2rem;
+        }
+        .grad-congrats {
+            text-align: center;
+            padding: 2rem;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #00c896;
+        }
+        .bucket-section {
+            background: rgba(255, 255, 255, 0.04) !important;
+            border-radius: 16px !important;
+            padding: 1.2rem !important;
+            margin-bottom: 2rem !important;
+            border: 1px solid rgba(255,255,255,0.06) !important;
+        }
+        .bucket-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.6rem;
+        }
+        .bh-name {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #fff;
+        }
+        .bh-stats {
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.5);
+        }
+        .bucket-progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 100px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+        .bucket-progress-fill {
+            height: 100%;
+            float: left;
+            transition: width 0.5s ease;
+        }
+        .bp-done { background: #00c896; }
+        .bp-ip { background: #60b4ff; }
+        
+        .req-label {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .req-label.done { color: rgba(255,255,255,0.4); text-decoration: line-through; }
+        .req-label.in-progress { color: #60b4ff; }
+        
+        .req-detail {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.3);
+            margin-top: 2px;
+        }
+        .req-match {
+            font-size: 0.7rem;
+            color: #00c896;
+            background: rgba(0, 200, 150, 0.1);
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-top: 4px;
+            display: inline-block;
+        }
+        .req-badge {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 100px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .rb-specific { background: rgba(96, 180, 255, 0.15); color: #60b4ff; }
+        .rb-either { background: rgba(255, 159, 67, 0.15); color: #ff9f43; }
+        .rb-description { background: rgba(255, 255, 255, 0.1); color: rgba(255,255,255,0.6); }
+
+        /* DNA Tab Styles */
+        .DNA-hero {
+            background: linear-gradient(90deg, rgba(240, 147, 251, 0.07), rgba(245, 87, 108, 0.07), rgba(255, 217, 61, 0.07));
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .DNA-hero h1 {
+            font-size: 2.6rem;
+            font-weight: 900;
+            background: linear-gradient(90deg, #f093fb, #f5576c, #ffd93d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.3rem;
+        }
+        .DNA-hero p {
+            color: rgba(255,255,255,0.65);
+            font-size: 1rem;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 1.4rem 1rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .stat-card .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #fff;
+        }
+        .stat-card .stat-label {
+            color: rgba(255,255,255,0.55);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 0.3rem;
+        }
+        .insight-card {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 1.4rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .insight-card .insight-title {
+            color: rgba(255,255,255,0.5);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 0.3rem;
+        }
+        .insight-card .insight-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .insight-card .insight-desc {
+            color: rgba(255,255,255,0.55);
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+        }
+        .archetype-card {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 20px;
+            padding: 2.5rem 2rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            margin: 0;
+            height: 100%;
+        }
+        .archetype-card .arch-label {
+            color: rgba(255,255,255,0.45);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 0.5rem;
+        }
+        .archetype-card .arch-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        .archetype-card .arch-desc {
+            color: rgba(255,255,255,0.65);
+            font-size: 1rem;
+            max-width: 550px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        .funfact-card {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 1.4rem 1.2rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 0.8rem;
+            height: 100%;
+        }
+        .narrative-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.85);
+            line-height: 1.7;
+            font-size: 1rem;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # --- Hero ---
+        st.markdown('''
+        <div class="grad-hero">
+            <h2>Graduation Tracker</h2>
+            <p>Track your progress towards fulfilling your degree requirements.</p>
+        </div>
+        ''', unsafe_allow_html=True)
+
+        # --- Main Content ---
+        if "grad_plan" not in st.session_state:
+            st.session_state.grad_plan = gt.create_plan("My Graduation Plan")
+            st.rerun()
+        else:
+            plan = st.session_state.grad_plan
+            results = gt.evaluate_progress(plan, df)
+            total_fulfilled, total_ip, total_required, overall_pct, overall_ip_pct = gt.get_overall_progress(plan, df)
+
+            # Overall Progress Card
+            if total_required == 0:
+                st.info("Your graduation plan is empty! Open the **Edit Graduation Plan** section below to get started.", icon="💡")
+            else:
+                if overall_pct >= 100: pct_color = "#00c896"
+                elif overall_pct >= 60: pct_color = "#60b4ff"
+                elif overall_pct >= 30: pct_color = "#ff9f43"
+                else: pct_color = "#ff6b6b"
+
+                mc_text = f"{int(total_fulfilled)} MCs Complete"
+                if total_ip > 0:
+                    mc_text += f" + {int(total_ip)} MCs In Progress"
+                mc_text += f" / {int(total_required)} Required"
+
+                st.markdown(f'''
+                <div class="grad-overall">
+                    <div class="go-label">Overall Progress</div>
+                    <div class="go-pct" style="color: {pct_color};">{overall_pct:.0f}%</div>
+                    <div class="go-mc">{mc_text}</div>
+                    <div class="bucket-progress-bar" style="height: 12px; margin-top: 15px;">
+                        <div class="bucket-progress-fill bp-done" style="width: {overall_pct}%;"></div>
+                        <div class="bucket-progress-fill bp-ip" style="width: {overall_ip_pct}%;"></div>
+                    </div>
+                </div>
+                ''', unsafe_allow_html=True)
+
+                if overall_pct >= 100:
+                    st.markdown('<div class="grad-congrats">🎉 Congratulations! All requirements fulfilled!</div>', unsafe_allow_html=True)
+
+                # --- Per-Bucket Sections ---
+                st.markdown("<br>", unsafe_allow_html=True)
+                for bi, bucket_result in enumerate(results):
+                    b_name = bucket_result["name"]
+                    b_fulfilled = bucket_result["fulfilled_mcs"]
+                    b_ip = bucket_result["in_progress_mcs"]
+                    b_total = bucket_result["total_mcs"]
+                    b_pct = bucket_result["percentage"]
+                    b_ip_pct = bucket_result["ip_percentage"]
+
+                    stat_text = f"{int(b_fulfilled)} Complete"
+                    if b_ip > 0: stat_text += f" + {int(b_ip)} IP"
+                    stat_text += f" / {int(b_total)} MCs"
+
+                    with st.container(border=True):
+                        st.markdown(f'''
+                        <div class="bucket-header">
+                            <span class="bh-name">{b_name}</span>
+                            <span class="bh-stats">{stat_text} &bull; {b_pct:.0f}%</span>
+                        </div>
+                        <div class="bucket-progress-bar">
+                            <div class="bucket-progress-fill bp-done" style="width: {b_pct}%;"></div>
+                            <div class="bucket-progress-fill bp-ip" style="width: {b_ip_pct}%;"></div>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+                        for ri, req in enumerate(bucket_result["requirements"]):
+                            rtype = req.get("type", "specific")
+                            status = req.get("status", "pending")
+                            mcs = req.get("mcs", 0)
+                            desc = req.get("description", "")
+                            matched = req.get("matched", [])
+
+                            icon = "✅" if status == "done" else "🔵" if status == "in_progress" else "⬜"
+                            label_class = "req-label done" if status == "done" else "req-label in-progress" if status == "in_progress" else "req-label"
+                            
+                            if rtype == "specific":
+                                label = req.get("course", "")
+                                if desc: label += f" &mdash; {desc}"
+                            elif rtype == "either":
+                                label = desc if desc else " / ".join(req.get("courses", []))
+                            else:
+                                label = desc if desc else "Manual Requirement"
+
+                            match_info = ""
+                            matched_detail = req.get("matched_detail", [])
+                            if matched_detail:
+                                match_str = ", ".join([f"{c} ({g})" for c, g in matched_detail])
+                                match_info = f'<div class="req-match">{match_str}</div>'
+
+                            detail_text = ""
+                            if rtype == "either": detail_text = " / ".join(req.get("courses", []))
+                            badge_labels = {"specific": "Specific", "either": "Either/Or", "description": "Manual"}
+                            badge_text = badge_labels.get(rtype, rtype.capitalize())
+
+                            # row columns
+                            row_cols = st.columns([0.1, 0.72, 0.18])
+                            with row_cols[0]:
+                                if rtype == "description" and not matched:
+                                    def toggle_manual_done(bi=bi, ri=ri):
+                                        p = st.session_state.grad_plan
+                                        current = p["buckets"][bi]["requirements"][ri].get("done", False)
+                                        p["buckets"][bi]["requirements"][ri]["done"] = not current
+                                        st.session_state.grad_plan = p
+                                    st.button(icon, key=f"gt_v_done_{bi}_{ri}", on_click=toggle_manual_done, help="Toggle done status")
+                                else:
+                                    st.markdown(f'<div style="text-align:center; padding-top:8px; font-size:1.2rem;">{icon}</div>', unsafe_allow_html=True)
+                            
+                            with row_cols[1]:
+                                st.markdown(f'<div class="{label_class}">{label}</div>', unsafe_allow_html=True)
+                                if detail_text: st.markdown(f'<div class="req-detail">{detail_text}</div>', unsafe_allow_html=True)
+                                if match_info: st.markdown(match_info, unsafe_allow_html=True)
+                            
+                            with row_cols[2]:
+                                st.markdown(f'<div style="text-align:right;"><span class="req-badge rb-{rtype}">{badge_text}</span></div>', unsafe_allow_html=True)
+                                st.markdown(f'<div style="text-align:right; font-size:0.75rem; color:rgba(255,255,255,0.4);">{int(mcs)} MC</div>', unsafe_allow_html=True)
+                            
+                            st.markdown('<hr style="margin: 4px 0; border: none; border-top: 1px solid rgba(255,255,255,0.05);">', unsafe_allow_html=True)
+
+            # --- Editor Section ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            edit_mode = st.toggle("✏️ Edit Graduation Plan", value=st.session_state.get("gt_edit_mode", False), key="gt_edit_mode")
+            
+            def update_req_type(bi, ri):
+                p = st.session_state.grad_plan
+                p["buckets"][bi]["requirements"][ri]["type"] = st.session_state[f"gt_ert_{bi}_{ri}"]
+                st.session_state.grad_plan = p
+
+            def update_req_course(bi, ri):
+                p = st.session_state.grad_plan
+                key = f"gt_erc_{bi}_{ri}"
+                raw = st.session_state[key].upper().strip()
+                bucket = p["buckets"][bi]
+                req = bucket["requirements"][ri]
+                if "," in raw:
+                    parts = [pt.strip() for pt in raw.split(",") if pt.strip()]
+                    if parts:
+                        req["course"] = parts[0]
+                        st.session_state[key] = parts[0]
+                        for c in parts[1:]:
+                            bucket["requirements"].append(gt.create_requirement(req_type="specific", course=c, mcs=req.get("mcs", 4)))
+                else: req["course"] = raw
+                st.session_state.grad_plan = p
+
+            def update_req_either(bi, ri):
+                p = st.session_state.grad_plan
+                key = f"gt_erc_{bi}_{ri}"
+                parsed = [c.strip().upper() for c in st.session_state[key].split(",") if c.strip()]
+                p["buckets"][bi]["requirements"][ri]["courses"] = parsed
+                st.session_state.grad_plan = p
+
+            def update_req_mcs(bi, ri):
+                p = st.session_state.grad_plan
+                p["buckets"][bi]["requirements"][ri]["mcs"] = st.session_state[f"gt_erm_{bi}_{ri}"]
+                st.session_state.grad_plan = p
+            
+            def update_req_desc(bi, ri):
+                p = st.session_state.grad_plan
+                p["buckets"][bi]["requirements"][ri]["description"] = st.session_state[f"gt_erd_{bi}_{ri}"]
+                st.session_state.grad_plan = p
+
+            def update_req_linked(bi, ri):
+                p = st.session_state.grad_plan
+                p["buckets"][bi]["requirements"][ri]["linked_course"] = st.session_state[f"gt_erl_{bi}_{ri}"].upper().strip()
+                st.session_state.grad_plan = p
+
+            def update_bucket_name(bi):
+                p = st.session_state.grad_plan
+                p["buckets"][bi]["name"] = st.session_state[f"gt_ebn_{bi}"]
+                st.session_state.grad_plan = p
+
+            if edit_mode:
+                st.caption("Customize your buckets and individual requirements.")
+                st.markdown("---")
+                for bi, bucket in enumerate(plan.get("buckets", [])):
+                    bk1, bk2 = st.columns([5, 1])
+                    with bk1:
+                        if f"gt_ebn_{bi}" not in st.session_state: st.session_state[f"gt_ebn_{bi}"] = bucket["name"]
+                        st.text_input("Name", key=f"gt_ebn_{bi}", label_visibility="collapsed", on_change=update_bucket_name, args=(bi,))
+                    with bk2:
+                        if st.button("🗑️", key=f"gt_ebdel_{bi}"):
+                            plan["buckets"].pop(bi)
+                            st.session_state.grad_plan = plan
+                            st.rerun()
+                    
+                    reqs_to_remove = []
+                    for ri, req in enumerate(bucket.get("requirements", [])):
+                        ec1, ec2, ec3, ec4 = st.columns([2, 3.5, 1, 0.5])
+                        rtype = req.get("type", "specific")
+                        with ec1:
+                            t_opts = ["specific", "either", "description"]
+                            if rtype not in t_opts: t_opts.append(rtype)
+                            if f"gt_ert_{bi}_{ri}" not in st.session_state: st.session_state[f"gt_ert_{bi}_{ri}"] = rtype
+                            st.selectbox("Type", t_opts, index=t_opts.index(rtype), key=f"gt_ert_{bi}_{ri}", label_visibility="collapsed", on_change=update_req_type, args=(bi, ri), format_func=lambda x: x.capitalize())
+                        with ec2:
+                            if rtype == "specific":
+                                if f"gt_erc_{bi}_{ri}" not in st.session_state: st.session_state[f"gt_erc_{bi}_{ri}"] = req.get("course", "")
+                                st.text_input("Course", key=f"gt_erc_{bi}_{ri}", label_visibility="collapsed", on_change=update_req_course, args=(bi, ri))
+                            elif rtype == "either":
+                                if f"gt_erc_{bi}_{ri}" not in st.session_state: st.session_state[f"gt_erc_{bi}_{ri}"] = ", ".join(req.get("courses", []))
+                                st.text_input("Courses", key=f"gt_erc_{bi}_{ri}", label_visibility="collapsed", on_change=update_req_either, args=(bi, ri))
+                            else:
+                                st.text_input("Label", value="(Manual)", disabled=True, label_visibility="collapsed", key=f"gt_md_{bi}_{ri}")
+                        with ec3:
+                            if f"gt_erm_{bi}_{ri}" not in st.session_state: st.session_state[f"gt_erm_{bi}_{ri}"] = int(req.get("mcs", 4))
+                            st.number_input("MCs", min_value=0, key=f"gt_erm_{bi}_{ri}", label_visibility="collapsed", on_change=update_req_mcs, args=(bi, ri))
+                        with ec4:
+                            if st.button("❌", key=f"gt_edel_{bi}_{ri}"): reqs_to_remove.append(ri)
+                        
+                        if f"gt_erd_{bi}_{ri}" not in st.session_state: st.session_state[f"gt_erd_{bi}_{ri}"] = req.get("description", "")
+                        st.text_input("Description", key=f"gt_erd_{bi}_{ri}", label_visibility="collapsed", on_change=update_req_desc, args=(bi, ri), placeholder="Requirement label")
+                        if rtype == "description":
+                            if f"gt_erl_{bi}_{ri}" not in st.session_state: st.session_state[f"gt_erl_{bi}_{ri}"] = req.get("linked_course", "")
+                            st.text_input("Linked Course", key=f"gt_erl_{bi}_{ri}", label_visibility="collapsed", on_change=update_req_linked, args=(bi, ri), placeholder="Module Code to match")
+
+                    if reqs_to_remove:
+                        for idx in sorted(reqs_to_remove, reverse=True): bucket["requirements"].pop(idx)
+                        st.session_state.grad_plan = plan
+                        st.rerun()
+
+                    if st.button("➕ Requirement", key=f"gt_addreq_{bi}"):
+                        bucket["requirements"].append(gt.create_requirement())
+                        st.session_state.grad_plan = plan
+                        st.rerun()
+                    st.markdown("---")
+
+                eb1, eb2, eb3 = st.columns([3, 1, 1])
+                with eb1: nb = st.text_input("New Bucket", key="gt_new_bk_name", placeholder="Bucket name")
+                with eb2:
+                    if st.button("➕ Bucket", key="gt_add_bk"):
+                        if nb:
+                            plan["buckets"].append(gt.create_bucket(nb))
+                            st.session_state.grad_plan = plan
+                            st.rerun()
+                with eb3:
+                    if st.button("⚠️ Clear", type="primary", key="gt_clear_plan"):
+                        st.session_state.grad_plan = gt.create_plan()
+                        st.rerun()
+
     # === TAB 4: DNA ===
     with tab4:
         # --- Custom CSS ---
@@ -913,8 +1483,8 @@ if not st.session_state.courses.empty:
             else:
                 st.info("Generate your academic archetype.")
                 if st.button("Generate Archetype", use_container_width=True):
-                    if api_key == "YOUR_API_KEY_HERE":
-                        st.warning("Please replace 'YOUR_API_KEY_HERE' in `.streamlit/secrets.toml` with your real Gemini API key!")
+                    if not api_key or api_key == "YOUR_API_KEY_HERE":
+                        st.warning("Please add your Gemini API key to `.streamlit/secrets.toml` as `GEMINI_API_KEY = \"your-key-here\"`")
                     else:
                         with st.spinner("Generating Archetype... This usually takes up to 10 seconds."):
                             name, desc = we.generate_custom_archetype(df, api_key)

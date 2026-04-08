@@ -11,6 +11,42 @@ from collections import Counter
 import json
 import os
 
+# --- GEMINI MODEL ROTATION ---
+# When one model hits its daily quota, the next one in the list is tried.
+GEMINI_MODEL_ROTATION = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview"
+]
+
+def _call_gemini_with_fallback(api_key, prompt, models=None):
+    """
+    Attempt to generate content using a list of Gemini models in order.
+    If a model returns a 429 / quota error, the next model is tried.
+    Returns (text, model_used) on success, raises the last exception on total failure.
+    """
+    import google.generativeai as genai
+    if not api_key:
+        raise ValueError("Gemini API key is missing. Add GEMINI_API_KEY to .streamlit/secrets.toml.")
+    if models is None:
+        models = GEMINI_MODEL_ROTATION
+    genai.configure(api_key=api_key)
+    last_exc = None
+    for model_name in models:
+        try:
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(prompt)
+            return resp.text, model_name
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "quota" in err_str.lower() or "rate" in err_str.lower():
+                last_exc = e
+                continue   # try next model
+            raise  # non-rate-limit errors bubble up immediately
+    raise last_exc  # all models exhausted
+
+
 # --- SUBJECT CATEGORY MAPPING ---
 SUBJECT_CATEGORIES = {
     "Computing": ["CS", "IS", "IT", "CG", "CP", "BT", "DSA"],
@@ -325,11 +361,8 @@ def generate_narrative(prompt, api_key, provider="gemini"):
     """RAG Generation step: call LLM API."""
     try:
         if provider == "gemini":
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            resp = model.generate_content(prompt)
-            return resp.text
+            text, _ = _call_gemini_with_fallback(api_key, prompt)
+            return text
         elif provider == "openai":
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
@@ -390,14 +423,8 @@ Return the exact output in this format:
 Archetype Name | Description"""
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash") # Use latest fast model
-        resp = model.generate_content(prompt)
-        text = resp.text.strip()
-        
-        # Clean out any accidental markdown bolding the AI might inject
-        text = text.replace("**", "").replace("*", "")
-        
+        text, _ = _call_gemini_with_fallback(api_key, prompt)
+        text = text.strip().replace("**", "").replace("*", "")
         if "|" in text:
             name, desc = text.split("|", 1)
             return name.strip(), desc.strip()
@@ -409,19 +436,17 @@ Archetype Name | Description"""
             return "🎯 The Enigma", text
     except Exception as e:
         err_str = str(e)
-        if "429" in err_str or "Quota" in err_str:
-            # Fallback for rate limits - don't use heavy RAG, just use prefixes
+        if "429" in err_str or "quota" in err_str.lower() or "rate" in err_str.lower():
+            # All models exhausted — try a simpler prompt as last resort
             short_prompt = f"Profile a university student taking multiple modules with these prefix codes: {list(prefix_counts.keys())}. Form their academic identity into a 2-word archetype with emoji, pipe symbol '|', and 1 sentence description."
             try:
-                model = genai.GenerativeModel("gemini-2.5-flash")
-                resp = model.generate_content(short_prompt)
-                text = resp.text.strip()
-                text = text.replace("**", "").replace("*", "")
+                text, _ = _call_gemini_with_fallback(api_key, short_prompt)
+                text = text.strip().replace("**", "").replace("*", "")
                 if "|" in text:
                     name, desc = text.split("|", 1)
                     return name.strip(), desc.strip()
             except Exception:
                 pass
-            return "⏳ The Patient Scholar", str(e).split(" Please retry")[0]
+            return "⏳ Daily limit reached", "All Gemini models hit their daily quota. Try again tomorrow or add another API key."
         return "⚠️ AI Error", str(e)
 
